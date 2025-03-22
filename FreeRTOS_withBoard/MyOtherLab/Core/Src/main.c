@@ -28,24 +28,22 @@
 #include "queue.h"
 /* USER CODE END Includes */
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
+
+
+
 /* Priorities at which the tasks are created. */
-#define mainONE_LEDTASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
-#define	mainOTHER_LED_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
+#define SenderTASK_PRIORITY ( tskIDLE_PRIORITY + 2 )
+#define ReceiverTASK_PRIORITY ( tskIDLE_PRIORITY + 1 )
+
+#define mainQUEUE_LENGTH ( 1 )
+static void SenderTask(void * argument);
+static void ReceiverTask(void * argument);
 
 /* The rate at which data is sent to the queue.  The times are converted from
 milliseconds to ticks using the pdMS_TO_TICKS() macro. */
 #define mainTASK_SEND_FREQUENCY_MS			pdMS_TO_TICKS( 200UL )
 #define mainTIMER_SEND_FREQUENCY_MS			pdMS_TO_TICKS( 2000UL )
 
-/* The number of items the queue can hold at once. */
-#define mainQUEUE_LENGTH					( 2 )
-
-/* The values sent to the queue receive task from the queue send task and the
-queue send software timer respectively. */
-#define mainVALUE_SENT_FROM_TASK			( 100UL )
-#define mainVALUE_SENT_FROM_TIMER			( 200UL )
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -80,6 +78,14 @@ static QueueHandle_t xQueue = NULL;
 /* A software timer that is started from the tick hook. */
 //static TimerHandle_t xTimer = NULL;
 /* USER CODE END 0 */
+void start_TIM2() {
+  RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+  TIM2->CR1 |= TIM_CR1_CEN;
+}
+
+uint16_t read_TIM2() {
+  return TIM2->CNT;
+}
 
 /**
   * @brief  The application entry point.
@@ -88,76 +94,28 @@ static QueueHandle_t xQueue = NULL;
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
-//	HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  /* USER CODE BEGIN 2 */
-  const TickType_t xTimerPeriod = mainTIMER_SEND_FREQUENCY_MS;
+  start_TIM2();
 
     	/* Create the queue. */
     	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint32_t ) );
       /* USER CODE BEGIN 1 */
     	if( xQueue != NULL )
     		{
-  		xTaskCreate( prvStartDefaultTask,			/* The function that implements the task. */
-  							"One LED", 							/* The text name assigned to the task - for debug only as it is not used by the kernel. */
-  							configMINIMAL_STACK_SIZE, 		/* The size of the stack to allocate to the task. */
-  							NULL, 							/* The parameter passed to the task - not used in this simple case. */
-  							mainONE_LEDTASK_PRIORITY,/* The priority assigned to the task. */
-  							NULL );							/* The task handle is not required, so NULL is passed. */
+  		xTaskCreate(SenderTask,"Sender",configMINIMAL_STACK_SIZE, NULL, SenderTASK_PRIORITY, NULL);
+  		xTaskCreate(ReceiverTask, "Receiver", configMINIMAL_STACK_SIZE, NULL, ReceiverTASK_PRIORITY, NULL );
 
-  		xTaskCreate( prvStartTask02, "Other LED", configMINIMAL_STACK_SIZE, NULL, mainOTHER_LED_TASK_PRIORITY, NULL );
-  //
-  		/* Create the software timer, but don't start it yet. */
-//  		xTimer = xTimerCreate( "Timer",				/* The text name assigned to the software timer - for debug only as it is not used by the kernel. */
-//  								xTimerPeriod,		/* The period of the software timer in ticks. */
-//  								pdTRUE,				/* xAutoReload is set to pdTRUE. */
-//  								NULL,				/* The timer's ID is not used. */
-//								prvStartDefaultTask );/* The function executed when the timer expires. */
-//
-//  		if( xTimer != NULL )
-//  				{
-//  					xTimerStart( xTimer, 0 );
-//  				}
-  //	  /* Start the scheduler so the tasks start executing. */
-  	  vTaskStartScheduler();
+  		vTaskStartScheduler();
   	}
-  	else
-  	{
-  		//throw led if queue can't be created.. debug led
-  		HAL_GPIO_TogglePin( GPIOD, GPIO_PIN_12 );
-
-  	}
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
+    // Debug is the blue pin
+	  HAL_GPIO_TogglePin( GPIOD, BLUE_LED_PIN );
+	  HAL_Delay(500);
 
-    /* USER CODE BEGIN 3 */
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -166,6 +124,7 @@ int main(void)
   */
 void SystemClock_Config(void)
 {
+
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -217,70 +176,68 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|orange_led_Pin|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD12 orange_led_Pin PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12|orange_led_Pin|GPIO_PIN_14|GPIO_PIN_15;
+  /*Configure GPIO pins : red, blue, green, orange */
+  GPIO_InitStruct.Pin = RED_LED_PIN | ORANGE_LED_PIN | BLUE_LED_PIN | GREEN_LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
 }
 
-/* USER CODE BEGIN 4 */
-static void prvStartDefaultTask(void  * argument)
+static void SenderTask(void  * argument)
 {
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
+	uint32_t retVal;
+	HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
   for(;;)
   {
-
-	  HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_14);
-
-	  vTaskDelay(250);
+	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE)
+	  {
+		  if(retVal == 1){
+			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+		  }
+		  if(retVal == 2){
+			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
+		  }
+	  }
   }
-  /* USER CODE END 5 */
-  vTaskDelete( NULL );
 }
 
-/* USER CODE BEGIN Header_StartTask02 */
-/**
-* @brief Function implementing the myLEDTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTask02 */
-static void prvStartTask02(void  * argument)
+static void ReceiverTask(void  * argument)
 {
-  /* USER CODE BEGIN StartTask02 */
-  /* Infinite loop */
   for(;;)
   {
-	  HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_15);
-    vTaskDelay(100);
-  }
-  /* USER CODE END StartTask02 */
-  vTaskDelete( NULL );
-}
-/* USER CODE END 4 */
+	  if (HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET)
+	  {
+		  //send message that button has been pressed to fill the queue
+		  // Sender task receives the argument and turns the red led off
+		  uint32_t msg = 1;
+		  uint32_t tickCount = xTaskGetTickCount();
+		  uint32_t rawRand = read_TIM2();
+		  uint32_t rand = rawRand ^ (tickCount >> 16);
+		  xQueueSend(xQueue, &msg, portMAX_DELAY);
 
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+		  msg = 2;
+		  //scans for 5 seconds
+		  vTaskDelay(pdMS_TO_TICKS(500));
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+		  //sends second message
+		  xQueueSend(xQueue, &msg, portMAX_DELAY);
+	  }
+	  // checks for button press
+	  vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
