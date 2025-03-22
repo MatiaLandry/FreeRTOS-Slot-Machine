@@ -1,0 +1,28 @@
+# STM32CubeIDE specific
+.settings/
+.project
+.cproject
+*.launch
+
+# Build output
+build/
+Debug/
+Release/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.srec
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Logs and backups
+*.log
+*.bak
+*.tmp

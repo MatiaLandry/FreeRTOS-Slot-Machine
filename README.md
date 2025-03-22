@@ -6,3 +6,12 @@ Final Project for real time systems. Using the FreeRTOS libraries, our objective
 - Task Management in FreeRTOS and its illustration on Discovery Board
 - Queue management in FreeRTOS and its illustration on Discovery Board;
 - Resource management in FreeRTOS and its demonstration on Discovery Board
+
+
+## After importing the project:
+1. Go to Project > Properties > C/C++ General > Paths and Symbols.
+2. Under Includes for GNU C, add:
+   - ${ProjName}/Core/FreeRTOS-Kernel/portable/GCC
+   - ${ProjName}/Core/FreeRTOS-Kernel/portable/MemMang
+   - TestRTOS/Core/FreeRTOS-Kernel/include
+   - (Optional) any absolute path needed for local FreeRTOS sources
