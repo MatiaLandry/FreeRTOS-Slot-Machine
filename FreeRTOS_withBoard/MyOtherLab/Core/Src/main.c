@@ -26,16 +26,14 @@
 #include "timers.h"
 #include "semphr.h"
 #include "queue.h"
+#include "stdbool.h"
 /* USER CODE END Includes */
-
-
-
 
 /* Priorities at which the tasks are created. */
 #define SenderTASK_PRIORITY ( tskIDLE_PRIORITY + 2 )
 #define ReceiverTASK_PRIORITY ( tskIDLE_PRIORITY + 1 )
 
-#define mainQUEUE_LENGTH ( 1 )
+#define mainQUEUE_LENGTH ( 4 )
 static void SenderTask(void * argument);
 static void ReceiverTask(void * argument);
 
@@ -44,25 +42,6 @@ milliseconds to ticks using the pdMS_TO_TICKS() macro. */
 #define mainTASK_SEND_FREQUENCY_MS			pdMS_TO_TICKS( 200UL )
 #define mainTIMER_SEND_FREQUENCY_MS			pdMS_TO_TICKS( 2000UL )
 
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 /* USER CODE BEGIN PFP */
@@ -100,8 +79,7 @@ int main(void)
   start_TIM2();
 
     	/* Create the queue. */
-    	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint32_t ) );
-      /* USER CODE BEGIN 1 */
+    	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint8_t) );
     	if( xQueue != NULL )
     		{
   		xTaskCreate(SenderTask,"Sender",configMINIMAL_STACK_SIZE, NULL, SenderTASK_PRIORITY, NULL);
@@ -194,22 +172,36 @@ static void MX_GPIO_Init(void)
 
 static void SenderTask(void  * argument)
 {
-	uint32_t retVal;
-	HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
+	bool retVal;
+	int hit;
+	//ready state == blue pin
+	HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
   for(;;)
   {
 	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE)
 	  {
-		  if(retVal == 1){
-			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-		  }
-		  if(retVal == 2){
+		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
+		  if(retVal == false){
 			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
+
+		  }
+		  if(retVal == true){
+			  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
+
 		  }
 	  }
   }
 }
+static bool reelHit(uint8_t number){
 
+	int value = number % 2;
+	if (value == 0){
+		return false;
+	}
+	if (value == 1){
+		return true;
+	}
+}
 static void ReceiverTask(void  * argument)
 {
   for(;;)
@@ -219,20 +211,69 @@ static void ReceiverTask(void  * argument)
 		  //send message that button has been pressed to fill the queue
 		  // Sender task receives the argument and turns the red led off
 		  uint32_t msg = 1;
-		  uint32_t tickCount = xTaskGetTickCount();
-		  uint32_t rawRand = read_TIM2();
-		  uint32_t rand = rawRand ^ (tickCount >> 16);
-		  xQueueSend(xQueue, &msg, portMAX_DELAY);
+		  uint8_t tickCount = xTaskGetTickCount();
+		  uint8_t rawRand = (read_TIM2() >> 8);
+		  uint8_t rand = rawRand ^ (tickCount >> 8);
+		  uint8_t val_1 = rand & 0x03;
+		  uint8_t val_2 = (rand >> 2) & 0x03;
+		  uint8_t val_3 = (rand >> 4) & 0x03;
+		  uint8_t val_4 = (rand >> 6) & 0x03;
+		  bool r1 = reelHit(val_1);
+		  bool r2 = reelHit(val_2);
+		  bool r3 = reelHit(val_3);
+		  bool r4 = reelHit(val_4);
 
-
+		 // xQueueSend(xQueue, &msg, portMAX_DELAY);
+		  //r1
+		  xQueueSend(xQueue, &r1, portMAX_DELAY);
 		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
-		  msg = 2;
-		  //scans for 5 seconds
-		  vTaskDelay(pdMS_TO_TICKS(500));
+		  vTaskDelay(pdMS_TO_TICKS(50));
 		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+
+		  vTaskDelay(pdMS_TO_TICKS(100));
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+
+		  //r2
+		  xQueueSend(xQueue, &r2, portMAX_DELAY);
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+		  vTaskDelay(pdMS_TO_TICKS(50));
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+
+		  vTaskDelay(pdMS_TO_TICKS(100));
+		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+
+		  //r3
+		  xQueueSendToBack(xQueue, &r3, portMAX_DELAY);
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+		  vTaskDelay(pdMS_TO_TICKS(50));
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+
+		  vTaskDelay(pdMS_TO_TICKS(100));
+		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+
+		  //r4
+		  xQueueSendToBack(xQueue, &r4, portMAX_DELAY);
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+		  vTaskDelay(pdMS_TO_TICKS(50));
+		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+		  vTaskDelay(pdMS_TO_TICKS(100));
+
+		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+
+
+		  //msg = 2;
+		  //scans for 5 seconds
+		 //vTaskDelay(pdMS_TO_TICKS(500));
+
 		  //sends second message
-		  xQueueSend(xQueue, &msg, portMAX_DELAY);
+		  //xQueueSend(xQueue, &msg, portMAX_DELAY);
 	  }
+
 	  // checks for button press
 	  vTaskDelay(pdMS_TO_TICKS(10));
   }
