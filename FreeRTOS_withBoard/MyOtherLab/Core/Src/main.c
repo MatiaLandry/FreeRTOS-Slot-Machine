@@ -217,18 +217,23 @@ static void loss(uint16_t colour){
 	}
 }
 static void WinTask(void * argument){
-	bool iswin;
-	int transitioning = 8;
+	 uint8_t iswin;
+	int transitioning;
 	for(;;){
 		//transition state triggered
-		if(xQueueReceive(transQueue, &transitioning, portMAX_DELAY) == pdTRUE && transitioning == 8){
-
+		if(xQueueReceive(transQueue, &transitioning, portMAX_DELAY) == pdTRUE){
+			//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+			transitioning =8;
+			if (transitioning == 8){
+				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 			//win condition handle
 			if(xQueueReceive(wQueue, &iswin, portMAX_DELAY) == pdTRUE){
-				if(iswin == false){
+				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+				if(iswin == 0){
+					//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 					loss(ORANGE_LED_PIN);
 				}
-				if (iswin == true){
+				if (iswin == 1){
 					for(int i=0; i<3; i++){
 						HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 						HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_SET);
@@ -243,36 +248,38 @@ static void WinTask(void * argument){
 					}
 				}
 			}
+			}
 		}
 	}
 }
 
 static void SenderTask(void  * argument)
 {
-	bool retVal;
-	int transition = 8;
+	uint8_t retVal;
+	uint8_t transition;
 	//ready state == blue pin
-	HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+	//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
   for(;;)
   {
 	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE)
 	  {
 		  vTaskDelay(pdMS_TO_TICKS(100));
 		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
-		  if(retVal == false){
+
+		  if(retVal == 0){
 			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
 
 		  }
-		  if(retVal == true){
+		  if(retVal == 1){
 			  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
 		  }
 		  if(retVal == 2 ){
-			  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-
+			  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+			  transition = 8;
 			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
 			  if(uxQueueMessagesWaiting(transQueue)> 0){
-			  				HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-			  			}
+			  				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+			  	}
 		  }
 		  vTaskDelay(pdMS_TO_TICKS(50));
 		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
@@ -301,7 +308,7 @@ static void ReceiverTask(void  * argument)
 {
 	  vTaskDelay(pdMS_TO_TICKS(waitOnStart));
 	  buttonProcessEnable = true;
-	  int BATCH_END = 2;
+	  int BATCH_END =2;
   for(;;)
   {
 
@@ -328,28 +335,29 @@ static void ReceiverTask(void  * argument)
 		  bool r2 = reelHit(val_2);
 		  bool r3 = reelHit(val_3);
 		  bool r4 = reelHit(val_4);
-		  bool iswin;
+		  uint8_t iswin;
 
 		  //sends all of the win values to flash to the user
 		  const uint16_t winVals[] = {r1, r2, r3, r4};
 		  for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
 			  xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
 		  }
+
 		  xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
 		  while(uxQueueMessagesWaiting(xQueue) > 0) {
-			 // HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+			 //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
 		  }
 		  // Determines if all the hits are true and loads the win animations
-		  if(uxQueueMessagesWaiting(transQueue) > 0){
+
 			  if (r1 && r2 && r3 && r4){
-				  iswin = true;
+				  iswin = 1;
 				  xQueueSend(wQueue, &iswin, portMAX_DELAY);
 			  }else{
-				  iswin = false;
+				  iswin = 0;
 					xQueueSend(wQueue, &iswin, portMAX_DELAY);
 			  }
-		  }
+
 
 		  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
