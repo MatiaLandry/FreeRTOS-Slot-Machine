@@ -62,6 +62,8 @@ void Error_Handler(void);
 #define BLUE_LED_PIN GPIO_PIN_15
 #define GREEN_LED_PIN  GPIO_PIN_12
 #define BUTTON_PIN GPIO_PIN_0
+
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

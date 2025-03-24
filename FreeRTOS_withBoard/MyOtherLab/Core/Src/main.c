@@ -30,12 +30,25 @@
 /* USER CODE END Includes */
 
 /* Priorities at which the tasks are created. */
-#define SenderTASK_PRIORITY ( tskIDLE_PRIORITY + 2 )
-#define ReceiverTASK_PRIORITY ( tskIDLE_PRIORITY + 1 )
+#define SenderTASK_PRIORITY ( tskIDLE_PRIORITY + 3 )
+#define ReceiverTASK_PRIORITY ( tskIDLE_PRIORITY + 2 )
+#define winTASK_PRIORITY (tskIDLE_PRIORITY + 4)
 
+//queue lengths
 #define mainQUEUE_LENGTH ( 4 )
+#define winQUEUE_LENGTH ( 1 )
+#define transitionQUEUE_LENGTH (1)
+
+#define WIN_EVENT 1
+#define TRANSITION true
+
+//start up delay control
+bool buttonProcessEnable = false;
+#define waitOnStart (50)
+
 static void SenderTask(void * argument);
 static void ReceiverTask(void * argument);
+static void WinTask(void *argument);
 
 /* The rate at which data is sent to the queue.  The times are converted from
 milliseconds to ticks using the pdMS_TO_TICKS() macro. */
@@ -51,8 +64,10 @@ static void prvStartTask02(void  * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-/* The queue used by both tasks. */
+/* The queues that handle the wins and switching between tasks */
 static QueueHandle_t xQueue = NULL;
+static QueueHandle_t wQueue = NULL;
+static QueueHandle_t transQueue = NULL;
 
 /* A software timer that is started from the tick hook. */
 //static TimerHandle_t xTimer = NULL;
@@ -77,22 +92,23 @@ int main(void)
   SystemClock_Config();
   MX_GPIO_Init();
   start_TIM2();
-
     	/* Create the queue. */
     	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint8_t) );
+    	wQueue = xQueueCreate(winQUEUE_LENGTH, sizeof(uint8_t) );
+    	transQueue = xQueueCreate(transitionQUEUE_LENGTH, sizeof(uint8_t) );
+
     	if( xQueue != NULL )
     		{
   		xTaskCreate(SenderTask,"Sender",configMINIMAL_STACK_SIZE, NULL, SenderTASK_PRIORITY, NULL);
   		xTaskCreate(ReceiverTask, "Receiver", configMINIMAL_STACK_SIZE, NULL, ReceiverTASK_PRIORITY, NULL );
-
+  		xTaskCreate(WinTask, "Winner", configMINIMAL_STACK_SIZE, NULL, winTASK_PRIORITY, NULL );
   		vTaskStartScheduler();
-  	}
+    	}
   while (1)
   {
     // Debug is the blue pin
 	  HAL_GPIO_TogglePin( GPIOD, BLUE_LED_PIN );
 	  HAL_Delay(500);
-
   }
 }
 
@@ -169,17 +185,79 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
 }
+static void beginingAnimation(){
+	int i;
+	const uint16_t ledPins[] = {GREEN_LED_PIN, ORANGE_LED_PIN, RED_LED_PIN, BLUE_LED_PIN};
+	for (int i = 0; i < (sizeof(ledPins) / sizeof(ledPins[0])); i++){
+		HAL_GPIO_WritePin(GPIOD, ledPins[i], GPIO_PIN_SET);
+		vTaskDelay(pdMS_TO_TICKS(10));
+		HAL_GPIO_WritePin(GPIOD, ledPins[i], GPIO_PIN_RESET);
+	}
+	for(i=0; i<3; i++){
+		HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_SET);
+		vTaskDelay(pdMS_TO_TICKS(10));
+		HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_RESET);
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+	 vTaskDelay(pdMS_TO_TICKS(20));
+
+}
+static void loss(uint16_t colour){
+	for(int i=0;i<3;i++){
+		HAL_GPIO_WritePin(GPIOD,colour, GPIO_PIN_SET);
+		vTaskDelay(pdMS_TO_TICKS(10));
+		HAL_GPIO_WritePin(GPIOD,colour, GPIO_PIN_RESET);
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+}
+static void WinTask(void * argument){
+	bool iswin;
+	int transitioning = 8;
+	for(;;){
+		//transition state triggered
+		if(xQueueReceive(transQueue, &transitioning, portMAX_DELAY) == pdTRUE && transitioning == 8){
+
+			//win condition handle
+			if(xQueueReceive(wQueue, &iswin, portMAX_DELAY) == pdTRUE){
+				if(iswin == false){
+					loss(ORANGE_LED_PIN);
+				}
+				if (iswin == true){
+					for(int i=0; i<3; i++){
+						HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+						HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_SET);
+						vTaskDelay(pdMS_TO_TICKS(10));
+						HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
+						HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_RESET);
+						HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
+						HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
+						vTaskDelay(pdMS_TO_TICKS(10));
+						HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+						HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+					}
+				}
+			}
+		}
+	}
+}
 
 static void SenderTask(void  * argument)
 {
 	bool retVal;
-	int hit;
+	int transition = 8;
 	//ready state == blue pin
 	HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
   for(;;)
   {
 	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE)
 	  {
+		  vTaskDelay(pdMS_TO_TICKS(100));
 		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
 		  if(retVal == false){
 			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
@@ -187,95 +265,99 @@ static void SenderTask(void  * argument)
 		  }
 		  if(retVal == true){
 			  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
-
 		  }
+		  if(retVal == 2 ){
+			  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+
+			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
+			  if(uxQueueMessagesWaiting(transQueue)> 0){
+			  				HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+			  			}
+		  }
+		  vTaskDelay(pdMS_TO_TICKS(50));
+		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+
 	  }
+
   }
 }
+
+// Determines if the bit input is on or off -> hit or miss
 static bool reelHit(uint8_t number){
 
+	// False = led off (miss)
 	int value = number % 2;
 	if (value == 0){
 		return false;
 	}
+	// True = led on (hit)
 	if (value == 1){
 		return true;
 	}
 }
+
 static void ReceiverTask(void  * argument)
 {
+	  vTaskDelay(pdMS_TO_TICKS(waitOnStart));
+	  buttonProcessEnable = true;
+	  int BATCH_END = 2;
   for(;;)
   {
-	  if (HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET)
+
+	  if (buttonProcessEnable && HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET)
 	  {
-		  //send message that button has been pressed to fill the queue
-		  // Sender task receives the argument and turns the red led off
-		  uint32_t msg = 1;
+		  beginingAnimation();
+
+		  // reading 8 bit uint from the set timer
+		  // and system timer.
 		  uint8_t tickCount = xTaskGetTickCount();
 		  uint8_t rawRand = (read_TIM2() >> 8);
+
+		  // XOR the values to scramble the bits
 		  uint8_t rand = rawRand ^ (tickCount >> 8);
+
+		  //partitioning the bits [XX][XX][XX][XX]
 		  uint8_t val_1 = rand & 0x03;
 		  uint8_t val_2 = (rand >> 2) & 0x03;
 		  uint8_t val_3 = (rand >> 4) & 0x03;
 		  uint8_t val_4 = (rand >> 6) & 0x03;
+
+		  //Determine hit or miss
 		  bool r1 = reelHit(val_1);
 		  bool r2 = reelHit(val_2);
 		  bool r3 = reelHit(val_3);
 		  bool r4 = reelHit(val_4);
+		  bool iswin;
 
-		 // xQueueSend(xQueue, &msg, portMAX_DELAY);
-		  //r1
-		  xQueueSend(xQueue, &r1, portMAX_DELAY);
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
-		  vTaskDelay(pdMS_TO_TICKS(50));
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+		  //sends all of the win values to flash to the user
+		  const uint16_t winVals[] = {r1, r2, r3, r4};
+		  for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
+			  xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
+		  }
+		  xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
+		  while(uxQueueMessagesWaiting(xQueue) > 0) {
+			 // HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
-		  vTaskDelay(pdMS_TO_TICKS(100));
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+		  }
+		  // Determines if all the hits are true and loads the win animations
+		  if(uxQueueMessagesWaiting(transQueue) > 0){
+			  if (r1 && r2 && r3 && r4){
+				  iswin = true;
+				  xQueueSend(wQueue, &iswin, portMAX_DELAY);
+			  }else{
+				  iswin = false;
+					xQueueSend(wQueue, &iswin, portMAX_DELAY);
+			  }
+		  }
 
-		  //r2
-		  xQueueSend(xQueue, &r2, portMAX_DELAY);
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
-		  vTaskDelay(pdMS_TO_TICKS(50));
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
-
-		  vTaskDelay(pdMS_TO_TICKS(100));
-		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
-
-		  //r3
-		  xQueueSendToBack(xQueue, &r3, portMAX_DELAY);
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
-		  vTaskDelay(pdMS_TO_TICKS(50));
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
-
-		  vTaskDelay(pdMS_TO_TICKS(100));
-		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
-
-		  //r4
-		  xQueueSendToBack(xQueue, &r4, portMAX_DELAY);
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
-		  vTaskDelay(pdMS_TO_TICKS(50));
-		  HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
-		  vTaskDelay(pdMS_TO_TICKS(100));
-
-		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+		  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
 
-		  //msg = 2;
-		  //scans for 5 seconds
-		 //vTaskDelay(pdMS_TO_TICKS(500));
-
-		  //sends second message
-		  //xQueueSend(xQueue, &msg, portMAX_DELAY);
 	  }
-
 	  // checks for button press
 	  vTaskDelay(pdMS_TO_TICKS(10));
+
   }
 }
 
