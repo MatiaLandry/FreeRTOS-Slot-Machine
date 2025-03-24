@@ -258,7 +258,7 @@ static void SenderTask(void  * argument)
 	uint8_t retVal;
 	uint8_t transition;
 	//ready state == blue pin
-	//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
   for(;;)
   {
 	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE)
@@ -277,13 +277,12 @@ static void SenderTask(void  * argument)
 			  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 			  transition = 8;
 			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
-			  if(uxQueueMessagesWaiting(transQueue)> 0){
-			  				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-			  	}
+
 		  }
 		  vTaskDelay(pdMS_TO_TICKS(50));
 		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+
 
 	  }
 
@@ -311,6 +310,7 @@ static void ReceiverTask(void  * argument)
 	  int BATCH_END =2;
   for(;;)
   {
+		HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
 	  if (buttonProcessEnable && HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET)
 	  {
@@ -344,10 +344,13 @@ static void ReceiverTask(void  * argument)
 		  }
 
 		  xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
+
+		  //debugging
 		  while(uxQueueMessagesWaiting(xQueue) > 0) {
 			 //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
 		  }
+
 		  // Determines if all the hits are true and loads the win animations
 
 			  if (r1 && r2 && r3 && r4){
@@ -357,6 +360,10 @@ static void ReceiverTask(void  * argument)
 				  iswin = 0;
 					xQueueSend(wQueue, &iswin, portMAX_DELAY);
 			  }
+			  while(uxQueueMessagesWaiting(wQueue) > 0) {
+				  vTaskDelay(pdMS_TO_TICKS(100));
+
+		  }
 
 
 		  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
