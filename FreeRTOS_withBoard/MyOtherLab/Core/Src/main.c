@@ -46,6 +46,10 @@
 bool buttonProcessEnable = false;
 #define waitOnStart (50)
 
+//time for led blinks
+#define timeBetweenBlink (10)
+
+
 static void SenderTask(void * argument);
 static void ReceiverTask(void * argument);
 static void WinTask(void *argument);
@@ -183,7 +187,7 @@ static void beginingAnimation() {
 
 	for (int i = 0; i < (sizeof(ledPins) / sizeof(ledPins[0])); i++){
 		HAL_GPIO_WritePin(GPIOD, ledPins[i], GPIO_PIN_SET);
-		vTaskDelay(pdMS_TO_TICKS(10));
+		vTaskDelay(pdMS_TO_TICKS(timeBetweenBlink));
 		HAL_GPIO_WritePin(GPIOD, ledPins[i], GPIO_PIN_RESET);
 	}
 
@@ -193,12 +197,12 @@ static void beginingAnimation() {
 		HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_SET);
-		vTaskDelay(pdMS_TO_TICKS(10));
+		vTaskDelay(pdMS_TO_TICKS(timeBetweenBlink));
 		HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_RESET);
-		vTaskDelay(pdMS_TO_TICKS(10));
+		vTaskDelay(pdMS_TO_TICKS(timeBetweenBlink));
 	}
 
 	 vTaskDelay(pdMS_TO_TICKS(20));
@@ -208,9 +212,9 @@ static void beginingAnimation() {
 static void loss(uint16_t colour){
 	for(int i=0;i<3;i++){
 		HAL_GPIO_WritePin(GPIOD,colour, GPIO_PIN_SET);
-		vTaskDelay(pdMS_TO_TICKS(10));
+		vTaskDelay(pdMS_TO_TICKS(timeBetweenBlink));
 		HAL_GPIO_WritePin(GPIOD,colour, GPIO_PIN_RESET);
-		vTaskDelay(pdMS_TO_TICKS(10));
+		vTaskDelay(pdMS_TO_TICKS(timeBetweenBlink));
 	}
 }
 
@@ -232,23 +236,24 @@ static void WinTask(void * argument) {
 
     // Process win condition
     if (iswin == 0) {
+      vTaskDelay(pdMS_TO_TICKS(20));
       loss(ORANGE_LED_PIN);
-    } 
+    }
 
     // Normal win animation: simple alternating flashes
     if (iswin == 1) {
       for (int i = 0; i < 3; i++) {
         // Flash blue and orange together
         HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN | ORANGE_LED_PIN, GPIO_PIN_SET);
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(20));
         HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN | ORANGE_LED_PIN, GPIO_PIN_RESET);
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(20));
 
         // Flash red and green together
         HAL_GPIO_WritePin(GPIOD, RED_LED_PIN | GREEN_LED_PIN, GPIO_PIN_SET);
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(20));
         HAL_GPIO_WritePin(GPIOD, RED_LED_PIN | GREEN_LED_PIN, GPIO_PIN_RESET);
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(20));
       }
     }
 
@@ -302,7 +307,7 @@ static void SenderTask(void  * argument) {
   // Once a message is recieves, turn on the blue led for 1s.
   for(;;) {
 	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE) {
-		  vTaskDelay(pdMS_TO_TICKS(100));
+		  vTaskDelay(pdMS_TO_TICKS(10));
 		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
 
 		  if(retVal == 0) {
@@ -322,12 +327,12 @@ static void SenderTask(void  * argument) {
 		  }
 
       // If the rolls are complete, send code 8 to transQueue
-		  if(retVal == 4 ) {
+		  if(retVal == 10 ) {
 			  transition = 8;
 			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
 		  }
 
-		  vTaskDelay(pdMS_TO_TICKS(50));
+		  vTaskDelay(pdMS_TO_TICKS(10));
 		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_RESET);
@@ -342,7 +347,7 @@ static int reelHit(uint8_t number){
 }
 
 // Monitors for a button press. When button is pressed, run LED animation,
-// generate a random number, determine hit or miss for each roll, and then send the 
+// generate a random number, determine hit or miss for each roll, and then send the
 // 4 results onto a queue, then sends overall win/loss to another queue.
 static void ReceiverTask(void  * argument) {
   vTaskDelay(pdMS_TO_TICKS(waitOnStart));
@@ -352,7 +357,7 @@ static void ReceiverTask(void  * argument) {
   const int JACKPOT = 2;
   const int NORMAL_WIN = 1;
   const int LOSS = 0;
-  const int BATCH_END = 4;
+  const int BATCH_END = 10;
 
   for(;;) {
     // Ready to play indicator
@@ -400,7 +405,7 @@ static void ReceiverTask(void  * argument) {
 
       // Determines if all the hits are true and loads the win animations
       // Sends the win flag to the wQueue, indicating an overall win.
-      if (r1 && r2 && r3 && r4) {
+      if (r1 == r2 && r2 == r3 && r3  == r4) {
         if (r1 == 0) iswin = JACKPOT;
         else iswin = NORMAL_WIN;
         xQueueSend(wQueue, &iswin, portMAX_DELAY);
