@@ -271,6 +271,7 @@ static void SenderTask(void  * argument) {
 			  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
 		  }
 
+      // If the rolls are complete, send code 8 to transQueue
 		  if(retVal == 2 ) {
 			  transition = 8;
 			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
@@ -283,14 +284,9 @@ static void SenderTask(void  * argument) {
   }
 }
 
-// Determines if the bit input is on or off -> hit or miss
+// If even, false. If odd, true.
 static bool reelHit(uint8_t number){
-	// False = led off (miss)
-	int value = number % 2;
-	if (value == 0) return false;
-
-	// True = led on (hit)
-	return true;
+	return number % 2;
 }
 
 // Monitors for a button press. When button is pressed, run LED animation,
