@@ -258,7 +258,6 @@ static void SenderTask(void  * argument) {
 
   // Block until a message is recieved on xQueue, then store the message in retVal.
   // Once a message is recieves, turn on the blue led for 1s.
-  //
   for(;;) {
 	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE) {
 		  vTaskDelay(pdMS_TO_TICKS(100));
@@ -286,19 +285,21 @@ static void SenderTask(void  * argument) {
 
 // Determines if the bit input is on or off -> hit or miss
 static bool reelHit(uint8_t number){
-
 	// False = led off (miss)
 	int value = number % 2;
 	if (value == 0) return false;
 
 	// True = led on (hit)
-	if (value == 1) return true;
+	return true;
 }
 
+// Monitors for a button press. When button is pressed, run LED animation,
+// generate a random number, determine hit or miss for each roll, and then send the 
+// 4 results onto a queue, then sends overall win/loss to another queue.
 static void ReceiverTask(void  * argument) {
 	  vTaskDelay(pdMS_TO_TICKS(waitOnStart));
 	  buttonProcessEnable = true;
-	  int BATCH_END =2;
+	  int BATCH_END = 2;
     for(;;) {
       HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
@@ -326,12 +327,13 @@ static void ReceiverTask(void  * argument) {
         bool r4 = reelHit(val_4);
         uint8_t iswin;
 
-        //sends all of the win values to flash to the user
+        // Send each value to the xQueue to flash the individual results.
         const uint16_t winVals[] = {r1, r2, r3, r4};
         for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
           xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
         }
 
+        // Send a 2 to the queue, indicating a finished state.
         xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
 
         //debugging
@@ -340,6 +342,7 @@ static void ReceiverTask(void  * argument) {
         }
 
         // Determines if all the hits are true and loads the win animations
+        // Sends the win flag to the wQueue, indicating an overall win.
         if (r1 && r2 && r3 && r4) {
           iswin = 1;
           xQueueSend(wQueue, &iswin, portMAX_DELAY);
