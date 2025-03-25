@@ -264,95 +264,114 @@ static void SenderTask(void  * argument) {
 		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
 
 		  if(retVal == 0) {
-			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
-		  }
-
-		  if(retVal == 1) {
 			  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
 		  }
 
+		  if(retVal == 1) {
+			  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+		  }
+
+		  if(retVal == 2) {
+			  HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_SET);
+		  }
+
+		  if(retVal == 3) {
+			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
+		  }
+
       // If the rolls are complete, send code 8 to transQueue
-		  if(retVal == 2 ) {
+		  if(retVal == 4 ) {
 			  transition = 8;
 			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
 		  }
 
 		  vTaskDelay(pdMS_TO_TICKS(50));
-		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
 	  }
   }
 }
 
 // If even, false. If odd, true.
-static bool reelHit(uint8_t number){
-	return number % 2;
+static int reelHit(uint8_t number){
+	return number % 4;
 }
 
 // Monitors for a button press. When button is pressed, run LED animation,
 // generate a random number, determine hit or miss for each roll, and then send the 
 // 4 results onto a queue, then sends overall win/loss to another queue.
 static void ReceiverTask(void  * argument) {
-	  vTaskDelay(pdMS_TO_TICKS(waitOnStart));
-	  buttonProcessEnable = true;
-	  int BATCH_END = 2;
-    for(;;) {
-      HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+  vTaskDelay(pdMS_TO_TICKS(waitOnStart));
+  buttonProcessEnable = true;
 
-      if (buttonProcessEnable && HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET) {
-        beginingAnimation();
+  // Condition flags
+  const int JACKPOT = 2;
+  const int NORMAL_WIN = 1;
+  const int LOSS = 0;
+  const int BATCH_END = 4;
 
-        // reading 8 bit uint from the set timer
-        // and system timer.
-        uint8_t tickCount = xTaskGetTickCount();
-        uint8_t rawRand = (read_TIM2() >> 8);
+  for(;;) {
+    // Ready to play indicator
+    HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
-        // XOR the values to scramble the bits
-        uint8_t rand = rawRand ^ (tickCount >> 8);
+    // Wait for button press
+    if (buttonProcessEnable && HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET) {
+      beginingAnimation();
 
-        //partitioning the bits [XX][XX][XX][XX]
-        uint8_t val_1 = rand & 0x03;
-        uint8_t val_2 = (rand >> 2) & 0x03;
-        uint8_t val_3 = (rand >> 4) & 0x03;
-        uint8_t val_4 = (rand >> 6) & 0x03;
+      // reading 8 bit uint from the set timer
+      // and system timer.
+      uint8_t tickCount = xTaskGetTickCount();
+      uint8_t rawRand = (read_TIM2() >> 8);
 
-        //Determine hit or miss
-        bool r1 = reelHit(val_1);
-        bool r2 = reelHit(val_2);
-        bool r3 = reelHit(val_3);
-        bool r4 = reelHit(val_4);
-        uint8_t iswin;
+      // XOR the values to scramble the bits
+      uint8_t rand = rawRand ^ (tickCount >> 8);
 
-        // Send each value to the xQueue to flash the individual results.
-        const uint16_t winVals[] = {r1, r2, r3, r4};
-        for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
-          xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
-        }
+      //partitioning the bits [XX][XX][XX][XX]
+      uint8_t val_1 = rand & 0x03;
+      uint8_t val_2 = (rand >> 2) & 0x03;
+      uint8_t val_3 = (rand >> 4) & 0x03;
+      uint8_t val_4 = (rand >> 6) & 0x03;
 
-        // Send a 2 to the queue, indicating a finished state.
-        xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
+      //Determine hit or miss
+      int r1 = reelHit(val_1);
+      int r2 = reelHit(val_2);
+      int r3 = reelHit(val_3);
+      int r4 = reelHit(val_4);
+      uint8_t iswin;
 
-        //debugging
-        while(uxQueueMessagesWaiting(xQueue) > 0) {
-         //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-        }
-
-        // Determines if all the hits are true and loads the win animations
-        // Sends the win flag to the wQueue, indicating an overall win.
-        if (r1 && r2 && r3 && r4) {
-          iswin = 1;
-          xQueueSend(wQueue, &iswin, portMAX_DELAY);
-        } else {
-          iswin = 0;
-          xQueueSend(wQueue, &iswin, portMAX_DELAY);
-        }
-        while(uxQueueMessagesWaiting(wQueue) > 0) {
-          vTaskDelay(pdMS_TO_TICKS(100));
-        }
+      // Send each value to the xQueue to flash the individual results.
+      // This is only for dislay, nothing is calculated here.
+      const uint16_t winVals[] = {r1, r2, r3, r4};
+      for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
+        xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
       }
-      // checks for button press
-      vTaskDelay(pdMS_TO_TICKS(10));
+
+      // Send a 4 to the queue, indicating a finished state.
+      xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
+
+      //debugging
+      while(uxQueueMessagesWaiting(xQueue) > 0) {
+       //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+      }
+
+      // Determines if all the hits are true and loads the win animations
+      // Sends the win flag to the wQueue, indicating an overall win.
+      if (r1 && r2 && r3 && r4) {
+        iswin = 1;
+        xQueueSend(wQueue, &iswin, portMAX_DELAY);
+      } else {
+        iswin = 0;
+        xQueueSend(wQueue, &iswin, portMAX_DELAY);
+      }
+      while(uxQueueMessagesWaiting(wQueue) > 0) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+      }
     }
+    // checks for button press
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
