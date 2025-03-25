@@ -218,6 +218,7 @@ static void loss(uint16_t colour){
 static void WinTask(void * argument) {
   uint8_t iswin;
   int transitioning;
+
   for (;;) {
     // Wait for a transition event; if not received, restart the loop.
     if (xQueueReceive(transQueue, &transitioning, portMAX_DELAY) != pdTRUE) continue;
@@ -232,18 +233,59 @@ static void WinTask(void * argument) {
     // Process win condition
     if (iswin == 0) {
       loss(ORANGE_LED_PIN);
-    } else if (iswin == 1) {
+    } 
+
+    // Normal win animation: simple alternating flashes
+    if (iswin == 1) {
+      for (int i = 0; i < 3; i++) {
+        // Flash blue and orange together
+        HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN | ORANGE_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN | ORANGE_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(50));
+
+        // Flash red and green together
+        HAL_GPIO_WritePin(GPIOD, RED_LED_PIN | GREEN_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        HAL_GPIO_WritePin(GPIOD, RED_LED_PIN | GREEN_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(50));
+      }
+    }
+
+    // Jackpot animation
+    if (iswin == 2) {
+
+      // Rapid full LED flash cycle
+      for (int i = 0; i < 6; i++) {
+        // All LEDs on
+        HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN | ORANGE_LED_PIN | RED_LED_PIN | GREEN_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(30));
+        // All LEDs off
+        HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN | ORANGE_LED_PIN | RED_LED_PIN | GREEN_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(30));
+      }
+
+      // Final alternating rapid flash sequence
       for (int i = 0; i < 3; i++) {
         HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
         HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(20));
+
+        HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(20));
         HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(20));
+
         HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_SET);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
         HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(20));
+
+        HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(20));
         HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_RESET);
+        vTaskDelay(pdMS_TO_TICKS(20));
       }
     }
   }
@@ -359,10 +401,11 @@ static void ReceiverTask(void  * argument) {
       // Determines if all the hits are true and loads the win animations
       // Sends the win flag to the wQueue, indicating an overall win.
       if (r1 && r2 && r3 && r4) {
-        iswin = 1;
+        if (r1 == 0) iswin = JACKPOT;
+        else iswin = NORMAL_WIN;
         xQueueSend(wQueue, &iswin, portMAX_DELAY);
       } else {
-        iswin = 0;
+        iswin = LOSS;
         xQueueSend(wQueue, &iswin, portMAX_DELAY);
       }
       while(uxQueueMessagesWaiting(wQueue) > 0) {
