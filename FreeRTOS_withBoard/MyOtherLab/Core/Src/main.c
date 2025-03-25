@@ -97,15 +97,13 @@ int main(void)
     	wQueue = xQueueCreate(winQUEUE_LENGTH, sizeof(uint8_t) );
     	transQueue = xQueueCreate(transitionQUEUE_LENGTH, sizeof(uint8_t) );
 
-    	if( xQueue != NULL )
-    		{
-  		xTaskCreate(SenderTask,"Sender",configMINIMAL_STACK_SIZE, NULL, SenderTASK_PRIORITY, NULL);
-  		xTaskCreate(ReceiverTask, "Receiver", configMINIMAL_STACK_SIZE, NULL, ReceiverTASK_PRIORITY, NULL );
-  		xTaskCreate(WinTask, "Winner", configMINIMAL_STACK_SIZE, NULL, winTASK_PRIORITY, NULL );
-  		vTaskStartScheduler();
+    	if( xQueue != NULL ) {
+        xTaskCreate(SenderTask,"Sender",configMINIMAL_STACK_SIZE, NULL, SenderTASK_PRIORITY, NULL);
+        xTaskCreate(ReceiverTask, "Receiver", configMINIMAL_STACK_SIZE, NULL, ReceiverTASK_PRIORITY, NULL );
+        xTaskCreate(WinTask, "Winner", configMINIMAL_STACK_SIZE, NULL, winTASK_PRIORITY, NULL );
+        vTaskStartScheduler();
     	}
-  while (1)
-  {
+  while (1) {
     // Debug is the blue pin
 	  HAL_GPIO_TogglePin( GPIOD, BLUE_LED_PIN );
 	  HAL_Delay(500);
@@ -116,9 +114,7 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
-void SystemClock_Config(void)
-{
-
+void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -134,22 +130,19 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK) {
     Error_Handler();
   }
 }
@@ -159,8 +152,7 @@ void SystemClock_Config(void)
   * @param None
   * @retval None
   */
-static void MX_GPIO_Init(void)
-{
+static void MX_GPIO_Init(void) {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
@@ -185,14 +177,17 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
 }
-static void beginingAnimation(){
+static void beginingAnimation() {
 	int i;
 	const uint16_t ledPins[] = {GREEN_LED_PIN, ORANGE_LED_PIN, RED_LED_PIN, BLUE_LED_PIN};
+
 	for (int i = 0; i < (sizeof(ledPins) / sizeof(ledPins[0])); i++){
 		HAL_GPIO_WritePin(GPIOD, ledPins[i], GPIO_PIN_SET);
 		vTaskDelay(pdMS_TO_TICKS(10));
 		HAL_GPIO_WritePin(GPIOD, ledPins[i], GPIO_PIN_RESET);
 	}
+
+  // Blink all LED's
 	for(i=0; i<3; i++){
 		HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_SET);
@@ -205,9 +200,11 @@ static void beginingAnimation(){
 		HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_RESET);
 		vTaskDelay(pdMS_TO_TICKS(10));
 	}
-	 vTaskDelay(pdMS_TO_TICKS(20));
 
+	 vTaskDelay(pdMS_TO_TICKS(20));
 }
+
+// This runs when a loss is detected, it just blinks the given led
 static void loss(uint16_t colour){
 	for(int i=0;i<3;i++){
 		HAL_GPIO_WritePin(GPIOD,colour, GPIO_PIN_SET);
@@ -216,6 +213,8 @@ static void loss(uint16_t colour){
 		vTaskDelay(pdMS_TO_TICKS(10));
 	}
 }
+
+// This runs when a win is detected, and plays an animation
 static void WinTask(void * argument){
 	 uint8_t iswin;
 	int transitioning;
@@ -223,69 +222,68 @@ static void WinTask(void * argument){
 		//transition state triggered
 		if(xQueueReceive(transQueue, &transitioning, portMAX_DELAY) == pdTRUE){
 			//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-			transitioning =8;
+			transitioning = 8;
 			if (transitioning == 8){
 				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-			//win condition handle
-			if(xQueueReceive(wQueue, &iswin, portMAX_DELAY) == pdTRUE){
-				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-				if(iswin == 0){
-					//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-					loss(ORANGE_LED_PIN);
-				}
-				if (iswin == 1){
-					for(int i=0; i<3; i++){
-						HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-						HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_SET);
-						vTaskDelay(pdMS_TO_TICKS(10));
-						HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
-						HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_RESET);
-						HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
-						HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
-						vTaskDelay(pdMS_TO_TICKS(10));
-						HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-						HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
-					}
-				}
-			}
+        //win condition handle
+        if(xQueueReceive(wQueue, &iswin, portMAX_DELAY) == pdTRUE){
+          //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+          if(iswin == 0){
+            //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+            loss(ORANGE_LED_PIN);
+          }
+          if (iswin == 1){
+            for(int i=0; i<3; i++){
+              HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+              HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_SET);
+              vTaskDelay(pdMS_TO_TICKS(10));
+              HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
+              HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_RESET);
+              HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
+              HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
+              vTaskDelay(pdMS_TO_TICKS(10));
+              HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
+              HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
+            }
+          }
+        }
 			}
 		}
 	}
 }
 
-static void SenderTask(void  * argument)
-{
+static void SenderTask(void  * argument) {
 	uint8_t retVal;
 	uint8_t transition;
+
 	//ready state == blue pin
 	HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-  for(;;)
-  {
-	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE)
-	  {
+
+  // Block until a message is recieved on xQueue, then store the message in retVal.
+  // Once a message is recieves, turn on the blue led for 1s.
+  //
+  for(;;) {
+	  if (xQueueReceive(xQueue, &retVal, portMAX_DELAY) == pdTRUE) {
 		  vTaskDelay(pdMS_TO_TICKS(100));
 		  HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
 
-		  if(retVal == 0){
+		  if(retVal == 0) {
 			  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
-
 		  }
-		  if(retVal == 1){
+
+		  if(retVal == 1) {
 			  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
 		  }
-		  if(retVal == 2 ){
-			  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+
+		  if(retVal == 2 ) {
 			  transition = 8;
 			  xQueueSend(transQueue, &transition, portMAX_DELAY  );
-
 		  }
+
 		  vTaskDelay(pdMS_TO_TICKS(50));
 		  HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
-
-
 	  }
-
   }
 }
 
@@ -294,90 +292,74 @@ static bool reelHit(uint8_t number){
 
 	// False = led off (miss)
 	int value = number % 2;
-	if (value == 0){
-		return false;
-	}
+	if (value == 0) return false;
+
 	// True = led on (hit)
-	if (value == 1){
-		return true;
-	}
+	if (value == 1) return true;
 }
 
-static void ReceiverTask(void  * argument)
-{
+static void ReceiverTask(void  * argument) {
 	  vTaskDelay(pdMS_TO_TICKS(waitOnStart));
 	  buttonProcessEnable = true;
 	  int BATCH_END =2;
-  for(;;)
-  {
-		HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+    for(;;) {
+      HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
 
-	  if (buttonProcessEnable && HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET)
-	  {
-		  beginingAnimation();
+      if (buttonProcessEnable && HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_SET) {
+        beginingAnimation();
 
-		  // reading 8 bit uint from the set timer
-		  // and system timer.
-		  uint8_t tickCount = xTaskGetTickCount();
-		  uint8_t rawRand = (read_TIM2() >> 8);
+        // reading 8 bit uint from the set timer
+        // and system timer.
+        uint8_t tickCount = xTaskGetTickCount();
+        uint8_t rawRand = (read_TIM2() >> 8);
 
-		  // XOR the values to scramble the bits
-		  uint8_t rand = rawRand ^ (tickCount >> 8);
+        // XOR the values to scramble the bits
+        uint8_t rand = rawRand ^ (tickCount >> 8);
 
-		  //partitioning the bits [XX][XX][XX][XX]
-		  uint8_t val_1 = rand & 0x03;
-		  uint8_t val_2 = (rand >> 2) & 0x03;
-		  uint8_t val_3 = (rand >> 4) & 0x03;
-		  uint8_t val_4 = (rand >> 6) & 0x03;
+        //partitioning the bits [XX][XX][XX][XX]
+        uint8_t val_1 = rand & 0x03;
+        uint8_t val_2 = (rand >> 2) & 0x03;
+        uint8_t val_3 = (rand >> 4) & 0x03;
+        uint8_t val_4 = (rand >> 6) & 0x03;
 
-		  //Determine hit or miss
-		  bool r1 = reelHit(val_1);
-		  bool r2 = reelHit(val_2);
-		  bool r3 = reelHit(val_3);
-		  bool r4 = reelHit(val_4);
-		  uint8_t iswin;
+        //Determine hit or miss
+        bool r1 = reelHit(val_1);
+        bool r2 = reelHit(val_2);
+        bool r3 = reelHit(val_3);
+        bool r4 = reelHit(val_4);
+        uint8_t iswin;
 
-		  //sends all of the win values to flash to the user
-		  const uint16_t winVals[] = {r1, r2, r3, r4};
-		  for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
-			  xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
-		  }
+        //sends all of the win values to flash to the user
+        const uint16_t winVals[] = {r1, r2, r3, r4};
+        for (int i = 0;  i < (sizeof(winVals) / sizeof(winVals[0])); i++){
+          xQueueSend(xQueue, &winVals[i], portMAX_DELAY);
+        }
 
-		  xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
+        xQueueSend(xQueue, &BATCH_END, portMAX_DELAY);
 
-		  //debugging
-		  while(uxQueueMessagesWaiting(xQueue) > 0) {
-			 //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+        //debugging
+        while(uxQueueMessagesWaiting(xQueue) > 0) {
+         //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
+        }
 
-		  }
-
-		  // Determines if all the hits are true and loads the win animations
-
-			  if (r1 && r2 && r3 && r4){
-				  iswin = 1;
-				  xQueueSend(wQueue, &iswin, portMAX_DELAY);
-			  }else{
-				  iswin = 0;
-					xQueueSend(wQueue, &iswin, portMAX_DELAY);
-			  }
-			  while(uxQueueMessagesWaiting(wQueue) > 0) {
-				  vTaskDelay(pdMS_TO_TICKS(100));
-
-		  }
-
-
-		  //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-
-
-	  }
-	  // checks for button press
-	  vTaskDelay(pdMS_TO_TICKS(10));
-
-  }
+        // Determines if all the hits are true and loads the win animations
+        if (r1 && r2 && r3 && r4) {
+          iswin = 1;
+          xQueueSend(wQueue, &iswin, portMAX_DELAY);
+        } else {
+          iswin = 0;
+          xQueueSend(wQueue, &iswin, portMAX_DELAY);
+        }
+        while(uxQueueMessagesWaiting(wQueue) > 0) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
+      }
+      // checks for button press
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
