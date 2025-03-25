@@ -215,41 +215,38 @@ static void loss(uint16_t colour){
 }
 
 // This runs when a win is detected, and plays an animation
-static void WinTask(void * argument){
-	 uint8_t iswin;
-	int transitioning;
-	for(;;){
-		//transition state triggered
-		if(xQueueReceive(transQueue, &transitioning, portMAX_DELAY) == pdTRUE){
-			//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-			transitioning = 8;
-			if (transitioning == 8){
-				//HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-        //win condition handle
-        if(xQueueReceive(wQueue, &iswin, portMAX_DELAY) == pdTRUE){
-          //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-          if(iswin == 0){
-            //HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-            loss(ORANGE_LED_PIN);
-          }
-          if (iswin == 1){
-            for(int i=0; i<3; i++){
-              HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_SET);
-              HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_SET);
-              vTaskDelay(pdMS_TO_TICKS(10));
-              HAL_GPIO_WritePin(GPIOD,BLUE_LED_PIN, GPIO_PIN_RESET);
-              HAL_GPIO_WritePin(GPIOD,ORANGE_LED_PIN, GPIO_PIN_RESET);
-              HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_SET);
-              HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_SET);
-              vTaskDelay(pdMS_TO_TICKS(10));
-              HAL_GPIO_WritePin(GPIOD,RED_LED_PIN, GPIO_PIN_RESET);
-              HAL_GPIO_WritePin(GPIOD,GREEN_LED_PIN, GPIO_PIN_RESET);
-            }
-          }
-        }
-			}
-		}
-	}
+static void WinTask(void * argument) {
+  uint8_t iswin;
+  int transitioning;
+  for (;;) {
+    // Wait for a transition event; if not received, restart the loop.
+    if (xQueueReceive(transQueue, &transitioning, portMAX_DELAY) != pdTRUE) continue;
+
+    // Set transitioning to 8 and verify.
+    transitioning = 8;
+    if (transitioning != 8) continue;
+
+    // Wait for the win condition message; if not received, restart the loop.
+    if (xQueueReceive(wQueue, &iswin, portMAX_DELAY) != pdTRUE) continue;
+
+    // Process win condition
+    if (iswin == 0) {
+      loss(ORANGE_LED_PIN);
+    } else if (iswin == 1) {
+      for (int i = 0; i < 3; i++) {
+        HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        HAL_GPIO_WritePin(GPIOD, BLUE_LED_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOD, ORANGE_LED_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_SET);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        HAL_GPIO_WritePin(GPIOD, RED_LED_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOD, GREEN_LED_PIN, GPIO_PIN_RESET);
+      }
+    }
+  }
 }
 
 static void SenderTask(void  * argument) {
